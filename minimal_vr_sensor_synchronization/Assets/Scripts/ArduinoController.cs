@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public class ArduinoController : MonoBehaviour
 {
@@ -21,6 +22,14 @@ public class ArduinoController : MonoBehaviour
         serialClient.Open();
     }
 
+    void Update()
+    {
+        if (Keyboard.current?.lKey.wasPressedThisFrame == true)
+        {
+            TurnLedOn();
+        }
+    }
+
     void OnDisable()
     {
         serialClient.LineReceived -= OnSerialLine;
@@ -30,14 +39,16 @@ public class ArduinoController : MonoBehaviour
     {
         Debug.Log("Arduino sent: " + line);
 
-        // Unity APIs are safe here.
-        if (line == "BUTTON_DOWN")
-            transform.position += Vector3.up;
+        // LineReceived runs on Unity's main thread, so moving the Cube is safe here.
+        if (line == "1")
+            transform.position += Vector3.forward * 0.1f;
     }
 
     public void TurnLedOn()
     {
-        if (!serialClient.SendLine("1"))
+        if (serialClient.SendLine("1"))
+            Debug.Log("Sent serial line: 1");
+        else
             Debug.LogWarning("Serial device is not connected.");
     }
 }
