@@ -16,7 +16,7 @@ using System.Threading;
 /// Reading happens on a worker thread; LineReceived is always raised by Update
 /// on Unity's main thread.
 /// </summary>
-public class SerialClient : MonoBehaviour
+public class SerialClientReadOnly : MonoBehaviour
 {
 #pragma warning disable 0414 // These Inspector fields are used only when desktop serial support is compiled in.
     [Header("Serial device")]
@@ -34,9 +34,6 @@ public class SerialClient : MonoBehaviour
     [Min(1)]
     [SerializeField] int readTimeoutMilliseconds = 250;
 
-    [Tooltip("Maximum time a write may block Unity's main thread.")]
-    [Min(1)]
-    [SerializeField] int writeTimeoutMilliseconds = 500;
 #pragma warning restore 0414
 
     [Tooltip("Maximum number of received lines delivered during one Unity frame.")]
@@ -109,8 +106,7 @@ public class SerialClient : MonoBehaviour
             newPort = new SerialPort(portName, baudRate)
             {
                 NewLine = "\n",
-                ReadTimeout = Math.Max(1, readTimeoutMilliseconds),
-                WriteTimeout = Math.Max(1, writeTimeoutMilliseconds)
+                ReadTimeout = Math.Max(1, readTimeoutMilliseconds)
             };
             newPort.Open();
 
@@ -158,52 +154,6 @@ public class SerialClient : MonoBehaviour
         Debug.LogWarning(
             "[SerialClient] Serial support is unavailable. For a Windows, macOS, or Linux " +
             "Editor/standalone build, add ARDUINO_SERIAL to Player Settings > Scripting Define Symbols.");
-        return false;
-#endif
-    }
-
-    /// <summary>Writes text exactly as supplied. Use SendLine for line-based Arduino commands.</summary>
-    public bool Send(string message)
-    {
-        return Write(message, false);
-    }
-
-    /// <summary>Writes text followed by a newline, for example "LED_ON\n".</summary>
-    public bool SendLine(string message)
-    {
-        return Write(message, true);
-    }
-
-    bool Write(string message, bool appendNewline)
-    {
-        if (message == null)
-        {
-            Debug.LogWarning("[SerialClient] Cannot send a null message.");
-            return false;
-        }
-
-#if SERIAL_PORT_SUPPORTED
-        lock (portLock)
-        {
-            try
-            {
-                if (serialPort == null || !serialPort.IsOpen)
-                    return false;
-
-                if (appendNewline)
-                    serialPort.WriteLine(message);
-                else
-                    serialPort.Write(message);
-
-                return true;
-            }
-            catch (Exception exception)
-            {
-                Debug.LogWarning($"[SerialClient] Serial write failed: {exception.Message}");
-                return false;
-            }
-        }
-#else
         return false;
 #endif
     }
