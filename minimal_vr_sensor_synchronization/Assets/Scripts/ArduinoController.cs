@@ -1,9 +1,8 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 public class ArduinoController : MonoBehaviour
 {
-    [SerializeField] SerialClient serialClient;
+    [SerializeField] SerialClientReadOnly serialClient;
 
     // void OnAwake()
     // {
@@ -22,14 +21,6 @@ public class ArduinoController : MonoBehaviour
         serialClient.Open();
     }
 
-    void Update()
-    {
-        if (Keyboard.current?.lKey.wasPressedThisFrame == true)
-        {
-            TurnLedOn();
-        }
-    }
-
     void OnDisable()
     {
         serialClient.LineReceived -= OnSerialLine;
@@ -41,14 +32,7 @@ public class ArduinoController : MonoBehaviour
 
         // LineReceived runs on Unity's main thread, so moving the Cube is safe here.
         if (line == "1")
+            // handle message and do something to Unity Objects
             transform.position += Vector3.forward * 0.1f;
-    }
-
-    public void TurnLedOn()
-    {
-        if (serialClient.SendLine("1"))
-            Debug.Log("Sent serial line: 1");
-        else
-            Debug.LogWarning("Serial device is not connected.");
     }
 }
