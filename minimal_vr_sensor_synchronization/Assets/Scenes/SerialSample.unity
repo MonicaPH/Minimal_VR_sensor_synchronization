@@ -199,7 +199,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SerialAccessLabel
   serialClient: {fileID: 1736967067}
-  fontSize: 18
+  fontSize: 32
   margin: 10
 --- !u!4 &1086270205
 Transform:

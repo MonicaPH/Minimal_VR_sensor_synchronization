@@ -13,7 +13,7 @@ public class SerialAccessLabel : MonoBehaviour
 
     [Header("Appearance")]
     [Min(6)]
-    [SerializeField] int fontSize = 18;
+    [SerializeField] int fontSize = 32;
 
     [Tooltip("Distance from the top-left corner of the screen, in pixels.")]
     [Min(0f)]
