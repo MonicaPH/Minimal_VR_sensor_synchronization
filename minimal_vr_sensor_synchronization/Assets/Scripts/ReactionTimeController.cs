@@ -28,8 +28,20 @@ public class ReactionTimeController : MonoBehaviour
     [Min(0f)]
     [SerializeField] float toneVolume = 0.25f;
 
+    [Header("On-screen result")]
+    [Tooltip("How long the newest result stays on screen, in seconds.")]
+    [Min(0f)]
+    [SerializeField] float resultDisplaySeconds = 2f;
+
+    [Min(6)]
+    [SerializeField] int fontSize = 32;
+
     AudioSource toneSource;
     AudioClip toneClip;
+    GUIStyle resultStyle;
+
+    // Unscaled, so a changed Time.timeScale cannot stretch or freeze the display.
+    float hideResultAtTime = float.NegativeInfinity;
 
     /// <summary>Raised on Unity's main thread with the result in milliseconds.</summary>
     public event Action<double> ReactionTimeReceived;
@@ -108,6 +120,7 @@ public class ReactionTimeController : MonoBehaviour
             Debug.Log(
                 $"[ReactionTimeController] Reaction time: " +
                 $"{LastReactionTimeMilliseconds:F3} ms");
+            hideResultAtTime = Time.unscaledTime + resultDisplaySeconds;
             ReactionTimeReceived?.Invoke(LastReactionTimeMilliseconds);
             return;
         }
@@ -117,6 +130,38 @@ public class ReactionTimeController : MonoBehaviour
             Debug.LogWarning("[ReactionTimeController] The AtomS3 already has an active trial.");
             return;
         }
+    }
+
+    void OnGUI()
+    {
+        // A later result simply pushes the deadline out; nothing needs cancelling.
+        if (Time.unscaledTime >= hideResultAtTime)
+            return;
+
+        // Styles cannot be built in Awake: GUI.skin exists only inside OnGUI.
+        if (resultStyle == null)
+            resultStyle = new GUIStyle(GUI.skin.label);
+
+        resultStyle.fontSize = fontSize;
+
+        // Centring the text inside a screen-sized rect keeps it centred at any
+        // resolution, and needs no measuring of the string itself.
+        resultStyle.alignment = TextAnchor.MiddleCenter;
+
+        string text = $"Reaction: {LastReactionTimeMilliseconds:F3} ms";
+        var area = new Rect(0f, 0f, Screen.width, Screen.height);
+
+        // Draw a dark copy behind the light one so the text stays readable
+        // over both bright and dark scenes, without needing any textures.
+        Color previousColor = GUI.color;
+
+        GUI.color = Color.black;
+        GUI.Label(new Rect(area.x + 1f, area.y + 1f, area.width, area.height), text, resultStyle);
+
+        GUI.color = Color.white;
+        GUI.Label(area, text, resultStyle);
+
+        GUI.color = previousColor;
     }
 
     AudioClip CreateToneClip()
