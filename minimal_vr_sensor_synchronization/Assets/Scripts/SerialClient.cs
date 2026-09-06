@@ -12,6 +12,20 @@ using System.Threading;
 #endif
 
 /// <summary>
+/// Which directions of traffic a <see cref="SerialClient"/> is opened for.
+/// A serial device has only one owner, so a scene should hold exactly one
+/// SerialClient and change its access instead of opening several clients.
+/// </summary>
+[Flags]
+public enum SerialAccess
+{
+    None = 0,
+    Read = 1 << 0,
+    Write = 1 << 1,
+    ReadWrite = Read | Write
+}
+
+/// <summary>
 /// Exchanges newline-terminated text messages with a serial device.
 /// Reading happens on a worker thread; LineReceived is always raised by Update
 /// on Unity's main thread.
@@ -29,6 +43,9 @@ public class SerialClient : MonoBehaviour
     [Tooltip("Open the port automatically when this component starts.")]
     [SerializeField] bool openOnStart;
 
+    [Tooltip("Which directions Open() uses when called without an explicit access.")]
+    [SerializeField] SerialAccess accessOnStart = SerialAccess.ReadWrite;
+
     [Header("Timeouts and workload")]
     [Tooltip("How long the reader waits for a complete line before checking whether it should stop.")]
     [Min(1)]
@@ -45,6 +62,11 @@ public class SerialClient : MonoBehaviour
 
     readonly ConcurrentQueue<string> receivedLines = new ConcurrentQueue<string>();
     readonly ConcurrentQueue<string> backgroundErrors = new ConcurrentQueue<string>();
+
+    SerialAccess access = SerialAccess.None;
+
+    /// <summary>Which directions the port is currently open for; None while closed.</summary>
+    public SerialAccess Access { get { return access; } }
 
     /// <summary>
     /// Raised from Unity's main thread for every complete line received.
@@ -89,15 +111,38 @@ public class SerialClient : MonoBehaviour
     }
 
     /// <summary>
-    /// Opens the configured port for both reading and writing.
-    /// Returns true when connected. Calling Open again while connected is safe.
+    /// Opens the configured port using the access selected in the Inspector.
+    /// Returns true when connected.
     /// </summary>
     public bool Open()
     {
-#if SERIAL_PORT_SUPPORTED
-        if (IsConnected)
-            return true;
+        return Open(accessOnStart);
+    }
 
+    /// <summary>
+    /// Opens the configured port for the requested directions and returns true when
+    /// connected. Fails when the port is already open: call Close first, so that
+    /// changing access is always deliberate.
+    /// </summary>
+    public bool Open(SerialAccess requestedAccess)
+    {
+        // A serial device has one owner. Reopening in place would silently change
+        // the access other components already rely on, so require an explicit Close.
+        if (access != SerialAccess.None)
+        {
+            Debug.LogWarning(
+                "[SerialClient] The port is already open for " + access +
+                ". Call Close before opening it again.");
+            return false;
+        }
+
+        if (requestedAccess == SerialAccess.None)
+        {
+            Debug.LogWarning("[SerialClient] Opening with SerialAccess.None would do nothing.");
+            return false;
+        }
+
+#if SERIAL_PORT_SUPPORTED
         // Clean up a port left behind by a previous read error before reconnecting.
         Close();
         ClearQueue(receivedLines);
@@ -118,15 +163,20 @@ public class SerialClient : MonoBehaviour
             {
                 serialPort = newPort;
                 serialRunning = true;
-                serialThread = new Thread(() => SerialLoop(newPort))
+                access = requestedAccess;
+
+                if ((requestedAccess & SerialAccess.Read) != 0)
                 {
-                    IsBackground = true,
-                    Name = "SerialClient reader"
-                };
-                serialThread.Start();
+                    serialThread = new Thread(() => SerialLoop(newPort))
+                    {
+                        IsBackground = true,
+                        Name = "SerialClient reader"
+                    };
+                    serialThread.Start();
+                }
             }
 
-            Debug.Log($"[SerialClient] Opened {portName} at {baudRate} baud.");
+            Debug.Log($"[SerialClient] Opened {portName} at {baudRate} baud for {requestedAccess}.");
             return true;
         }
         catch (Exception exception)
@@ -136,6 +186,7 @@ public class SerialClient : MonoBehaviour
             {
                 serialPort = null;
                 serialThread = null;
+                access = SerialAccess.None;
             }
 
             if (newPort != null)
@@ -179,6 +230,14 @@ public class SerialClient : MonoBehaviour
         if (message == null)
         {
             Debug.LogWarning("[SerialClient] Cannot send a null message.");
+            return false;
+        }
+
+        // An open client without Write access is a configuration mistake worth naming.
+        // A closed client falls through to the port checks below and fails quietly.
+        if (access != SerialAccess.None && (access & SerialAccess.Write) == 0)
+        {
+            Debug.LogWarning("[SerialClient] The port is open read-only; it cannot send.");
             return false;
         }
 
@@ -280,6 +339,8 @@ public class SerialClient : MonoBehaviour
     /// <summary>Stops the reader and releases the port. Calling Close repeatedly is safe.</summary>
     public void Close()
     {
+        access = SerialAccess.None;
+
 #if SERIAL_PORT_SUPPORTED
         SerialPort portToClose;
         Thread threadToJoin;
