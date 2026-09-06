@@ -688,7 +688,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 386d0d21b364446fdac5f4458491ce8d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SerialClient
-  portName: /dev/cu.usbmodem2101
+  portName: COM3
   baudRate: 115200
   openOnStart: 0
   accessOnStart: 0
