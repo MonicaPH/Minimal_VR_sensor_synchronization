@@ -15,8 +15,12 @@ using System.Threading;
 /// Which directions of traffic a <see cref="SerialClient"/> is opened for.
 /// A serial device has only one owner, so a scene should hold exactly one
 /// SerialClient and change its access instead of opening several clients.
+///
+/// The values are bits so that access can be tested with &, but the type is
+/// deliberately not [Flags]: that would make Unity draw the Inspector field as
+/// a bitmask whose "Everything" entry stores -1, and a -1 access matches none
+/// of the modes the key handlers expect.
 /// </summary>
-[Flags]
 public enum SerialAccess
 {
     None = 0,
@@ -44,7 +48,7 @@ public class SerialClient : MonoBehaviour
     [SerializeField] bool openOnStart;
 
     [Tooltip("Which directions Open() uses when called without an explicit access.")]
-    [SerializeField] SerialAccess accessOnStart = SerialAccess.ReadWrite;
+    [SerializeField] SerialAccess accessOnStart = SerialAccess.Read;
 
     [Header("Timeouts and workload")]
     [Tooltip("How long the reader waits for a complete line before checking whether it should stop.")]
