@@ -2,7 +2,7 @@ using UnityEngine;
 
 public class ArduinoController : MonoBehaviour
 {
-    [SerializeField] SerialClientReadOnly serialClient;
+    [SerializeField] SerialClient serialClient;
 
     // void OnAwake()
     // {
@@ -10,15 +10,11 @@ public class ArduinoController : MonoBehaviour
     //     serialClient = GetComponent<SerialClient>();
     // }
 
+    // HandleKey owns the connection, so this component only subscribes.
+    // Subscribing does not require an open port.
     void OnEnable()
     {
         serialClient.LineReceived += OnSerialLine;
-    }
-
-    void Start()
-    {
-        // Omit this if "Open On Start" is enabled on SerialClient.
-        serialClient.Open();
     }
 
     void OnDisable()
@@ -28,6 +24,13 @@ public class ArduinoController : MonoBehaviour
 
     void OnSerialLine(string line)
     {
+        // While the port is writable a reaction-time trial is possible, and the AtomS3
+        // keeps streaming "1" for as long as its button is held once the trial ends.
+        // Those lines belong to the trial, not to this demo, and arrive fast enough to
+        // flood the console, so ignore them entirely outside read-only mode.
+        if (line == "1" && (serialClient.Access & SerialAccess.Write) != 0)
+            return;
+
         Debug.Log("Arduino sent: " + line);
 
         // LineReceived runs on Unity's main thread, so moving the Cube is safe here.
