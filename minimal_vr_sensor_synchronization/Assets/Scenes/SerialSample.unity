@@ -154,6 +154,8 @@ MonoBehaviour:
   toneFrequencyHz: 1000
   toneDurationSeconds: 0.08
   toneVolume: 0.25
+  resultDisplaySeconds: 2
+  fontSize: 40
 --- !u!4 &1055355356
 Transform:
   m_ObjectHideFlags: 0
@@ -689,7 +691,7 @@ MonoBehaviour:
   portName: /dev/cu.usbmodem2101
   baudRate: 115200
   openOnStart: 0
-  accessOnStart: -1
+  accessOnStart: 0
   readTimeoutMilliseconds: 250
   writeTimeoutMilliseconds: 500
   maxMessagesPerFrame: 100
