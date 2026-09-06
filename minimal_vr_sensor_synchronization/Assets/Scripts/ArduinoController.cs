@@ -4,6 +4,33 @@ public class ArduinoController : MonoBehaviour
 {
     [SerializeField] SerialClient serialClient;
 
+    [Header("Circular motion")]
+    [Tooltip("Radius of the circle the cube travels, in world units.")]
+    [Min(0f)]
+    [SerializeField] float circleRadius = 0.5f;
+
+    [Tooltip("How far around the circle each received \"1\" moves the cube. The AtomS3 " +
+             "sends \"1\" continuously while its button is held, so keep this small.")]
+    [SerializeField] float degreesPerMessage = 0.2f;
+
+    Vector3 circleCentre;
+    float angleDegrees;
+
+    void Awake()
+    {
+        circleCentre = transform.position;
+        transform.position = PositionOnCircle();
+    }
+
+    Vector3 PositionOnCircle()
+    {
+        float radians = angleDegrees * Mathf.Deg2Rad;
+        return circleCentre + new Vector3(
+            Mathf.Cos(radians) * circleRadius,
+            Mathf.Sin(radians) * circleRadius,
+            0f);
+    }
+
     // void OnAwake()
     // {
     //     // use this if parent object also has SerialClient attached
@@ -35,7 +62,10 @@ public class ArduinoController : MonoBehaviour
 
         // LineReceived runs on Unity's main thread, so moving the Cube is safe here.
         if (line == "1")
+        {
             // handle message and do something to Unity Objects
-            transform.position += Vector3.forward * 0.1f;
+            angleDegrees += degreesPerMessage;
+            transform.position = PositionOnCircle();
+        }
     }
 }
