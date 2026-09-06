@@ -78,7 +78,16 @@ public class ReactionTimeController : MonoBehaviour
     /// <summary>Sends the timing-critical, single-byte trial command.</summary>
     public bool StartTrial()
     {
-        if (serialClient == null || !serialClient.Send(ReactionTimeProtocol.StartTrial))
+        // A trial is a request and a reply, so write-only access cannot run one.
+        if (serialClient == null || serialClient.Access != SerialAccess.ReadWrite)
+        {
+            Debug.LogWarning(
+                "[ReactionTimeController] A trial needs read-write access to receive its result. " +
+                $"Current access: {(serialClient == null ? SerialAccess.None : serialClient.Access)}.");
+            return false;
+        }
+
+        if (!serialClient.Send(ReactionTimeProtocol.StartTrial))
         {
             Debug.LogWarning("[ReactionTimeController] Cannot start a trial: serial is not connected.");
             return false;
