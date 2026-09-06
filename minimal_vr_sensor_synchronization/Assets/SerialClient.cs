@@ -146,6 +146,19 @@ public class SerialClient : MonoBehaviour
             return false;
         }
 
+        // Refuse anything that is not one of the three real modes. Without this, a
+        // stale value such as -1 opens the port with an access that no key handler
+        // recognises, and the trigger and trial keys go dead with no explanation.
+        if (requestedAccess != SerialAccess.Read &&
+            requestedAccess != SerialAccess.Write &&
+            requestedAccess != SerialAccess.ReadWrite)
+        {
+            Debug.LogWarning(
+                $"[SerialClient] {(int)requestedAccess} is not a valid SerialAccess. " +
+                "Use Read, Write, or ReadWrite; check the access field in the Inspector.");
+            return false;
+        }
+
 #if SERIAL_PORT_SUPPORTED
         // Clean up a port left behind by a previous read error before reconnecting.
         Close();
