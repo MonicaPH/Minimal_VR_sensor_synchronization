@@ -1,9 +1,15 @@
 # Minimal_VR_sensor_synchronization
 
+A minimal Unity project that exchanges messages with an M5Stack AtomS3 over USB
+serial, together with the AtomS3 firmware it talks to.
+
+- `minimal_vr_sensor_synchronization/` — the Unity project (Unity 6000.5.9f1).
+- `serial_device/` — four PlatformIO firmware projects for the AtomS3; each has
+  its own README.
 
 ## Unity–Arduino serial communication
 
-`SerialClient.cs` sends and receives newline-terminated text without blocking Unity's frame loop. A worker thread waits for serial input, and Unity's `Update()` method delivers received lines on the main thread. It is therefore safe for a `LineReceived` handler to update GameObjects, UI, or other Unity objects.
+`Assets/SerialClient.cs` sends and receives newline-terminated text without blocking Unity's frame loop. A worker thread waits for serial input, and Unity's `Update()` method delivers received lines on the main thread. It is therefore safe for a `LineReceived` handler to update GameObjects, UI, or other Unity objects.
 
 ### Supported targets
 
@@ -12,104 +18,66 @@ This sample is intended for the Unity Editor and standalone players on Windows, 
 ### Unity setup
 
 1. Open **Edit > Project Settings > Player > Other Settings**.
-2. Set **API Compatibility Level** to **.NET Framework**. Older Unity versions label this **.NET 4.x**.
-3. Add `ARDUINO_SERIAL` under **Scripting Define Symbols**, then select **Apply**.
-4. Add `SerialClient` to a GameObject.
-5. In its Inspector, set the same baud rate used by the Arduino sketch and enter the port name:
+2. Set **API Compatibility Level** to **.NET Framework**. Older Unity versions
+   label this **.NET 4.x**. The project is already saved with this setting.
+3. Open one of the sample scenes from the Project window (see
+   [Sample scenes](#sample-scenes)).
+4. Select the **SerialClient** GameObject in the scene and set the same baud
+   rate used by the firmware (115200) and the port name:
    - Windows: `COM3`, `COM4`, and so on.
    - Linux: commonly `/dev/ttyUSB0` or `/dev/ttyACM0`.
    - macOS: commonly `/dev/cu.usbmodem...` or `/dev/cu.usbserial...`.
 
-On Linux, the user running Unity must have permission to access the port, often through membership in the `dialout` group. Close the Arduino Serial Monitor before opening the port in Unity because only one program can normally own it at a time.
+On Linux, the user running Unity must have permission to access the port, often through membership in the `dialout` group. Close the Arduino Serial Monitor or `pio device monitor` before opening the port in Unity because only one program can normally own it at a time.
 
-## Unity example
+## Sample scenes
 
-Attach the controller script to a GameObject and assign its `Serial Client` field in the Inspector.
+Each scene pairs with one firmware project under `serial_device/`.
 
-Use `SendLine("command")` for the usual line-based protocol. Use `Send("raw text")` only when the device protocol does not expect a trailing newline. Both methods return `false` instead of throwing when the port is disconnected or a write fails.
+| Scene | Access | Firmware | What it does |
+|-------|--------|----------|--------------|
+| `Assets/UnitySendScene/SendTrigger.unity` | `Write`, opened on start | `m5atoms3-trigger-box` | Unity sends `1`; the AtomS3 flashes its display |
+| `Assets/UnityReceiveScene/ReceiveTrigger.unity` | `Read`, opened on start | `m5atoms3-button-input` | Each received `1` advances a cube around a circle |
+| `Assets/SendReceiveScene/SendReceive.unity` | `ReadWrite`, opened on start | `m5atoms3-reaction-timer` | `Space` starts a reaction-time trial and shows the result |
+| `Assets/WorkshopScene/SerialSample.unity` | chosen at runtime with `1`/`2`/`3` | `m5atoms3-workshop-version` | All of the above in one scene |
 
-## API summary
+The three single-purpose scenes open the port in `Start()` with the access
+stored on the `SerialClient` component, so nothing has to be pressed to
+connect. The workshop scene deliberately starts closed.
 
-- `bool Open()` — opens the configured port using the **Access On Start** value set in the Inspector.
-- `bool Open(SerialAccess)` — opens the port for `Read`, `Write`, or `ReadWrite`. **Fails if the port is already open**; call `Close()` first, so changing access is always deliberate.
-- `void Close()` — stops reading, releases the port, and resets `Access` to `None`; safe to call repeatedly.
-- `SerialAccess Access` — the directions the port is currently open for; `None` while closed.
-- `bool IsConnected` — reports whether the port is currently open.
-- `event Action<string> LineReceived` — receives complete lines on Unity's main thread.
-- `bool SendLine(string)` — sends text followed by `\n`.
-- `bool Send(string)` — sends text exactly as supplied.
+### Send scene
 
-The component closes the port when it is disabled or destroyed. Read errors are returned to the main thread for logging, and one failing `LineReceived` subscriber does not prevent other subscribers from receiving the same line.
+`Assets/UnitySendScene/SendTrigger.cs` is attached to the Trigger Object and sends
+the line `1` when its **Trigger Key** (`T` by default) is pressed.
 
-### One device, one client
+### Receive scene
 
-A serial device has a single owner. Two `SerialPort` objects on the same port
-share one kernel input queue, so each incoming byte reaches only one of them:
-lines get split between the readers, both stay permanently mis-framed, and the
-first read error closes one client for good. Use **one** `SerialClient` per
-device and change its access instead:
+`Assets/UnityReceiveScene/ReceiveTrigger.cs` is attached to the Cube and
+subscribes to `LineReceived`. Each `1` advances the cube 0.2° around a circle of
+radius 0.5 in the x/y plane, centred on the position the cube had at scene
+start. `Awake` places the cube on that orbit, so the first message does not make
+it jump.
 
-```csharp
-serialClient.Close();
-serialClient.Open(SerialAccess.Read);   // reader thread only
-serialClient.Open(SerialAccess.Write);  // no reader thread; Send/SendLine only
-serialClient.Open(SerialAccess.ReadWrite);
-```
+The AtomS3 repeats `1` for as long as its button is held, which is why the step
+is small enough that holding the button walks the cube smoothly round the
+circle.
 
-`Read` and `Write` are enforced in C#, not by the operating system:
-`System.IO.Ports.SerialPort` takes no access mode and always opens the device
-read/write. `SerialAccess.Read` means *no reader thread is started*, and
-without `Write` the `Send` methods return `false` and log a warning.
+### Send-receive scene
 
-## Reaction-time experiment
+`Assets/SendReceiveScene/SendReceiveController.cs` owns one bidirectional
+`SerialClient`, opens it on start, and starts a trial when **Space** is pressed:
+it sends the byte `T`, plays a short beep generated in code (no audio file
+needed), and draws the returned reaction time in the centre of the screen for
+two seconds.
 
-`ReactionTimeController.cs` uses one bidirectional `SerialClient` to start a
-trial and receive the result. That same client is shared by `ArduinoController`
-and `HandleKey`; see [One device, one client](#one-device-one-client).
-
-1. Add `SerialClient` to an empty GameObject and configure its port and baud
-   rate as described above. Leave **Open On Start** unticked so `HandleKey`
-   controls the connection.
-2. Add `ReactionTimeController` to another GameObject.
-3. Drag the GameObject containing `SerialClient` onto the controller's
-   **Serial Client** field, and onto the same field on `ArduinoController` and
-   `HandleKey`.
-4. Enter Play mode. Nothing is connected until you choose an access mode:
-
-   | Key | Access | What works |
-   |-----|--------|------------|
-   | `1` | `Read` | `ArduinoController` walks the cube around a circle on `1` from the AtomS3 button |
-   | `2` | `Write` | The `T` key sends `1`, flashing the AtomS3 display |
-   | `3` | `ReadWrite` | `Space` starts a trial and `R:<microseconds>` comes back |
-
-   Each key closes the port before reopening it, so only one access mode is
-   ever live.
-
-Note that the **`T` key** and the **`T` byte** are different things. The `T` key
-belongs to `HandleKey` and sends the line `1`; it works only in write-only mode.
-A reaction-time trial is started with **Space**, which sends the byte `T`.
-
-Each received `1` advances the cube one step around a circle in the x/y plane,
-centred on the position it had at scene start. Because the AtomS3 repeats `1`
-for as long as its button is held, **Degrees Per Message** is small by default
-(0.2°) so that holding the button walks the cube smoothly round the circle.
-`Awake` places the cube on its orbit, one **Circle Radius** away from where you
-positioned it, so the first message does not make it jump.
-
-`ArduinoController` ignores received `1` lines whenever the port is writable.
-Once a trial ends, the AtomS3 keeps sending `1` for as long as its button is
-held, so in `ReadWrite` mode those lines belong to the reaction-time flow rather
-than to the cube demo, and they arrive fast enough to flood the console.
-
-The controller creates its short beep in code, so it does not require an audio
-file. Other scripts can start trials and receive results through its public API:
+Other scripts can start trials and receive results through its public API:
 
 ```csharp
 using UnityEngine;
 
 public class ExperimentExample : MonoBehaviour
 {
-    [SerializeField] ReactionTimeController reactionController;
+    [SerializeField] SendReceiveController reactionController;
 
     void OnEnable()
     {
@@ -133,8 +101,68 @@ public class ExperimentExample : MonoBehaviour
 }
 ```
 
-The serial protocol is `T` from Unity to start a trial, `R:<microseconds>` from
-the AtomS3 after the first button press, and `B` if Unity tries to start a
-second trial while one is active. `effects:on`, `effects:off`, and
-`effects:toggle` are newline-terminated setup messages. Disabling effects does
-not disable timing.
+### Workshop scene
+
+`Assets/WorkshopScene/` holds the combined demo presented at ACII2026.
+
+All four components share the one `SerialClient`; see
+[One device, one client](#one-device-one-client).
+
+Enter Play mode. Nothing is connected until an access mode is chosen:
+
+| Key | Access | What works |
+|-----|--------|------------|
+| `1` | `Read` | `ArduinoController` walks the cube around a circle on `1` from the AtomS3 button |
+| `2` | `Write` | The `T` key sends the line `1`, flashing the AtomS3 display |
+| `3` | `ReadWrite` | `Space` starts a trial and `R:<microseconds>` comes back |
+
+Each key closes the port before reopening it, so only one access mode is ever
+live.
+
+## SerialClient API summary
+
+- `bool Open()` — opens the configured port using the **Access On Start** value set in the Inspector.
+- `bool Open(SerialAccess)` — opens the port for `Read`, `Write`, or `ReadWrite`. **Fails if the port is already open**; call `Close()` first, so changing access is always deliberate. Also fails for `None` and for any value outside the three real modes.
+- `void Close()` — stops reading, releases the port, and resets `Access` to `None`; safe to call repeatedly.
+- `SerialAccess Access` — the directions the port is currently open for; `None` while closed.
+- `bool IsConnected` — reports whether the port is currently open.
+- `event Action<string> LineReceived` — receives complete lines on Unity's main thread.
+- `bool SendLine(string)` — sends text followed by `\n`.
+- `bool Send(string)` — sends text exactly as supplied.
+
+Use `SendLine("command")` for the usual line-based protocol. Use `Send("raw text")` only when the device protocol does not expect a trailing newline. Both methods return `false` instead of throwing when the port is disconnected or a write fails.
+
+The component closes the port when it is disabled or destroyed. Read errors are returned to the main thread for logging, and one failing `LineReceived` subscriber does not prevent other subscribers from receiving the same line.
+
+### One device, one client
+
+A serial device has a single owner. Two `SerialPort` objects on the same port
+share one kernel input queue, so each incoming byte reaches only one of them:
+lines get split between the readers, both stay permanently mis-framed, and the
+first read error closes one client for good. Use **one** `SerialClient` per
+device and change its access instead:
+
+```csharp
+serialClient.Close();
+serialClient.Open(SerialAccess.Read);   // reader thread only
+serialClient.Open(SerialAccess.Write);  // no reader thread; Send/SendLine only
+serialClient.Open(SerialAccess.ReadWrite);
+```
+
+`Read` and `Write` are enforced in C#, not by the operating system:
+`System.IO.Ports.SerialPort` takes no access mode and always opens the device
+read/write. `SerialAccess.Read` means *no reader thread is started*, and
+without `Write` the `Send` methods return `false` and log a warning.
+
+## Serial protocol
+
+Defined in `Assets/WorkshopScene/ReactionTimeProtocol.cs` and implemented by the
+firmware in `serial_device/`:
+
+| Direction | Message | Meaning |
+|-----------|---------|---------|
+| Unity → AtomS3 | `T` | Start a reaction-time trial; sent without a newline |
+| AtomS3 → Unity | `R:<microseconds>\n` | The button was pressed after that many microseconds |
+| AtomS3 → Unity | `B\n` | A trial was already active; the timer was not restarted |
+| Unity → AtomS3 | `1\n` | Flash the AtomS3 display (trigger box) |
+| AtomS3 → Unity | `1\n` | Button press outside a trial |
