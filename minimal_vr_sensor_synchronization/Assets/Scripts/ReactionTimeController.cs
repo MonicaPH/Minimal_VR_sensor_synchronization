@@ -13,8 +13,9 @@ public class ReactionTimeController : MonoBehaviour
     [Tooltip("The bidirectional SerialClient connected to the AtomS3.")]
     [SerializeField] SerialClient serialClient;
 
-    [Tooltip("Open the SerialClient when this component starts.")]
-    [SerializeField] bool openOnStart = true;
+    [Tooltip("Open the SerialClient when this component starts. Off by default, so the " +
+             "access mode is chosen deliberately at runtime.")]
+    [SerializeField] bool openOnStart;
 
     [Header("Keyboard shortcuts")]
     [SerializeField] Key startTrialKey = Key.Space;

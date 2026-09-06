@@ -47,8 +47,10 @@ public class SerialClient : MonoBehaviour
     [Tooltip("Open the port automatically when this component starts.")]
     [SerializeField] bool openOnStart;
 
-    [Tooltip("Which directions Open() uses when called without an explicit access.")]
-    [SerializeField] SerialAccess accessOnStart = SerialAccess.Read;
+    [Tooltip("Which directions Open() uses when called without an explicit access. " +
+             "Leave this at None so that the mode has to be chosen deliberately at " +
+             "runtime, with Open(access) or the access keys.")]
+    [SerializeField] SerialAccess accessOnStart = SerialAccess.None;
 
     [Header("Timeouts and workload")]
     [Tooltip("How long the reader waits for a complete line before checking whether it should stop.")]
@@ -142,7 +144,10 @@ public class SerialClient : MonoBehaviour
 
         if (requestedAccess == SerialAccess.None)
         {
-            Debug.LogWarning("[SerialClient] Opening with SerialAccess.None would do nothing.");
+            Debug.LogWarning(
+                "[SerialClient] No access is selected, so there is nothing to open. " +
+                "Choose a mode at runtime with Open(access), or set the access field " +
+                "if the port really should open on start.");
             return false;
         }
 
