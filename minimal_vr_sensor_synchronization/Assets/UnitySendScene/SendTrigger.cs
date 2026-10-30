@@ -25,7 +25,7 @@ public class SendTrigger : MonoBehaviour
 
     void Send()
     {
-        if (serialClient == null || serialClient.Access != SerialAccess.Write || serialClient.Access != SerialAccess.ReadWrite)
+        if (serialClient == null || (serialClient.Access != SerialAccess.Write && serialClient.Access != SerialAccess.ReadWrite))
         {
             Debug.LogWarning(
                 $"Trigger key needs write access. " +
